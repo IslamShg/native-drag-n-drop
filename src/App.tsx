@@ -1,131 +1,160 @@
-import React, { useRef, useState } from 'react'
-import './App.css'
 import classNames from 'classnames'
-
-type Status = 'done' | 'inProgress' | 'todo'
+import React, { useState } from 'react'
+import './App.css'
 
 type Card = {
   id?: number
-  status?: Status
+  column: string
   text?: string
 }
 
+type Column = {
+  id?: number
+  name?: string
+  tasks: Card[]
+  value: string
+}
+
+const initialData = [
+  {
+    id: 1,
+    name: 'Список задач',
+    tasks: [
+      { id: 1, column: 'todo', text: 'Задача 1' },
+      { id: 2, column: 'todo', text: 'Задача 2' }
+    ],
+    value: 'todo'
+  },
+  {
+    id: 2,
+    name: 'В работе',
+    tasks: [
+      { id: 3, column: 'inProgress', text: 'В прогрессе 1' },
+      { id: 4, column: 'inProgress', text: 'В прогрессе 2' }
+    ],
+    value: 'inProgress'
+  },
+  {
+    id: 3,
+    name: 'Сделано',
+    tasks: [
+      { id: 5, column: 'done', text: 'Сделано 1' },
+      { id: 6, column: 'done', text: 'Сделано 3' }
+    ],
+    value: 'done'
+  }
+]
+
 function App() {
-  const [cardList, setCardList] = useState<Card[]>([
-    { id: 1, status: 'done', text: 'КАРТОЧКА 1' },
-    { id: 2, status: 'inProgress', text: 'КАРТОЧКА 2' },
-    { id: 3, status: 'todo', text: 'КАРТОЧКА 3' },
-    { id: 4, status: 'done', text: 'КАРТОЧКА 4' }
-  ])
+  const [columnList, setColumnList] = useState<Column[]>(initialData)
+  const [currentColumn, setCurrentColumn] = useState<Column | null>(null)
+  const [enteredColumn, setEnteredColumn] = useState<string | null>(null)
 
-  const [currentCard, setCurrentCard] = useState<Card | null>(null)
-  const [enteringColumn, setEnteringColumn] = useState<Status | null>(null)
+  const [draggingCard, setDraggingCard] = useState<Card | null>(null)
+  const [enteredCard, setEnteredCard] = useState<Card | null>(null)
 
-  const onDragStart = (draggingCard: Card) => {
-    setCurrentCard(draggingCard)
+  const onDragStart = (card: Card, column: Column) => {
+    setDraggingCard(card)
+    setCurrentColumn(column)
+  }
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault()
+  const onCardDragEnter = (card: Card) => setEnteredCard(card)
+  const onDragEnter = (e: React.DragEvent<HTMLDivElement>, column: string) => {
+    setEnteredColumn(column)
   }
 
   const onDragLeave = () => {}
+  const onDragEnd = () => {}
 
-  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
+  const onAnyDrop = () => {
+    setEnteredColumn(null)
+    setDraggingCard(null)
   }
 
-  const onDragEnter = (e: React.DragEvent<HTMLDivElement>, column: Status) => {
-    setEnteringColumn(column)
-  }
-
-  const onDrop = (e: React.DragEvent<HTMLDivElement>, column: Status) => {
-    e.preventDefault()
-    if (currentCard?.status === column) {
+  const onCardDrop = (e: React.DragEvent<HTMLDivElement>, card: Card) => {
+    if (draggingCard?.column !== card.column || draggingCard.id === card.id) {
       return
     }
-    const newTasks = cardList.filter((task) => task.id !== currentCard?.id)
-    newTasks.unshift({ ...currentCard, status: column })
 
-    setCardList(newTasks)
-    setCurrentCard(null)
-    setEnteringColumn(null)
+    const rearrangedTasks = currentColumn?.tasks.map((task) =>
+      task.id === draggingCard.id
+        ? card
+        : task.id === card.id
+        ? draggingCard
+        : task
+    )
+    const newColumn = {
+      ...currentColumn,
+      tasks: rearrangedTasks
+    } as Column
+
+    setColumnList((prev) =>
+      prev.map((column) => (column.id === newColumn.id ? newColumn : column))
+    )
   }
 
-  const onDragEnd = () => {
-    setEnteringColumn(null)
-  }
+  const onDrop = (e: React.DragEvent<HTMLDivElement>, column: Column) => {
+    if (!draggingCard || draggingCard?.column === column.value) {
+      return
+    }
 
-  const doneTasks = cardList.filter((task) => task.status === 'done')
-  const todoTasks = cardList.filter((task) => task.status === 'todo')
-  const inProgressTasks = cardList.filter(
-    (task) => task.status === 'inProgress'
-  )
+    const tasks = currentColumn?.tasks.filter(
+      (task) => task.id !== draggingCard?.id
+    )
+    const prevColumn = { ...currentColumn, tasks } as Column
+    const newColumn = column
+    draggingCard.column = column.value
+    newColumn.tasks.unshift(draggingCard as Card)
+
+    setColumnList((prev) =>
+      prev.map((column) => (column.id === prevColumn.id ? prevColumn : column))
+    )
+  }
 
   return (
     <div className="app">
       <div className="container">
-        <div
-          className={classNames('column', {
-            entered: enteringColumn === 'todo' && currentCard?.status !== 'todo'
-          })}
-          onDragEnter={(e) => onDragEnter(e, 'todo')}
-          onDrop={(e) => onDrop(e, 'todo')}
-          onDragLeave={() => onDragLeave()}
-          onDragOver={(e) => onDragOver(e)}
-        >
-          {todoTasks.map((task) => (
-            <div
-              draggable
-              className="card"
-              onDragStart={() => onDragStart(task)}
-              onDragEnd={() => onDragEnd()}
-              key={task.id}
-            >
-              {task.text}
-            </div>
-          ))}
-        </div>
-        <div
-          className={classNames('column', {
-            entered:
-              enteringColumn === 'inProgress' &&
-              currentCard?.status !== 'inProgress'
-          })}
-          onDragLeave={() => onDragLeave()}
-          onDragEnter={(e) => onDragEnter(e, 'inProgress')}
-          onDrop={(e) => onDrop(e, 'inProgress')}
-          onDragOver={(e) => onDragOver(e)}
-        >
-          {inProgressTasks.map((task) => (
-            <div
-              draggable
-              className="card"
-              onDragStart={() => onDragStart(task)}
-              onDragEnd={() => onDragEnd()}
-              key={task.id}
-            >
-              {task.text}
-            </div>
-          ))}
-        </div>
-        <div
-          className={classNames('column', {
-            entered: enteringColumn === 'done' && currentCard?.status !== 'done'
-          })}
-          onDragEnter={(e) => onDragEnter(e, 'done')}
-          onDrop={(e) => onDrop(e, 'done')}
-          onDragLeave={() => onDragLeave()}
-          onDragOver={(e) => onDragOver(e)}
-        >
-          {doneTasks.map((task) => (
-            <div
-              draggable
-              className="card"
-              onDragStart={() => onDragStart(task)}
-              onDragEnd={() => onDragEnd()}
-              key={task.id}
-            >
-              {task.text}
-            </div>
-          ))}
-        </div>
+        {columnList.map((column) => (
+          <div
+            className={classNames('column', {
+              entered:
+                enteredColumn === column.value &&
+                draggingCard?.column !== column.value
+            })}
+            onDragEnter={(e) => onDragEnter(e, column.value)}
+            onDrop={(e) => {
+              onDrop(e, column)
+              onAnyDrop()
+            }}
+            onDragLeave={() => onDragLeave()}
+            onDragOver={(e) => onDragOver(e)}
+          >
+            <p>{column.name}</p>
+            {column.tasks.map((task) => (
+              <div
+                onDrop={(e) => {
+                  onCardDrop(e, task)
+                  onAnyDrop()
+                }}
+                draggable
+                onDragEnter={() => onCardDragEnter(task)}
+                onDragOver={onDragOver}
+                className={classNames('card', {
+                  entered:
+                    enteredCard?.id === task.id &&
+                    enteredCard?.id !== draggingCard?.id &&
+                    draggingCard?.column === task.column
+                })}
+                onDragStart={() => onDragStart(task, column)}
+                onDragEnd={() => onDragEnd()}
+                key={task.id}
+              >
+                {task.text}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   )
